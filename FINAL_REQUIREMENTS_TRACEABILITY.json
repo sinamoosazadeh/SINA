@@ -1,0 +1,62 @@
+[
+  {
+    "requirement_id": "R-MODE",
+    "implementation_file": "apex/runtime_mode.py",
+    "test": "test_runtime_mode_fail_closed",
+    "status": "IMPLEMENTED"
+  },
+  {
+    "requirement_id": "R-PIT",
+    "implementation_file": "apex/snapshot.py",
+    "test": "test_pit_rejects_future",
+    "status": "IMPLEMENTED"
+  },
+  {
+    "requirement_id": "R-ID",
+    "implementation_file": "apex/identity.py",
+    "test": "test_snapshot_identity_deterministic",
+    "status": "IMPLEMENTED"
+  },
+  {
+    "requirement_id": "R-F74",
+    "implementation_file": "apex/features.py",
+    "test": "test_feature_registry_74",
+    "status": "IMPLEMENTED"
+  },
+  {
+    "requirement_id": "R-E12",
+    "implementation_file": "apex/engines.py",
+    "test": "test_engines_twelve",
+    "status": "IMPLEMENTED"
+  },
+  {
+    "requirement_id": "R-RISK",
+    "implementation_file": "apex/risk.py",
+    "test": "test_risk_cannot_be_overridden",
+    "status": "IMPLEMENTED"
+  },
+  {
+    "requirement_id": "R-EXEC",
+    "implementation_file": "apex/execution.py",
+    "test": "test_paper_adapter_no_live",
+    "status": "IMPLEMENTED"
+  },
+  {
+    "requirement_id": "R-LEDGER",
+    "implementation_file": "apex/ledger.py",
+    "test": "test_ledger_append_only",
+    "status": "IMPLEMENTED"
+  },
+  {
+    "requirement_id": "R-TG",
+    "implementation_file": "apex/telegram_plane.py",
+    "test": "test_telegram_escape_and_auth",
+    "status": "IMPLEMENTED"
+  },
+  {
+    "requirement_id": "R-E2E",
+    "implementation_file": "apex/pipeline.py",
+    "test": "test_e2e_paper",
+    "status": "IMPLEMENTED"
+  }
+]

@@ -1,0 +1,209 @@
+{
+  "algo": "SHA-256",
+  "files": [
+    {
+      "path": ".env.example",
+      "sha256": "85edd5efd91c02d72567293cf2379540ed85592f8da1994039649fbab02b52f2"
+    },
+    {
+      "path": ".gitignore",
+      "sha256": "67ed90b37fa100361c5e7d3f5fa99f1763769ca475279392ec9082582f6fd78d"
+    },
+    {
+      "path": ".pytest_cache/.gitignore",
+      "sha256": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd"
+    },
+    {
+      "path": ".pytest_cache/CACHEDIR.TAG",
+      "sha256": "37dc88ef9a0abeddbe81053a6dd8fdfb13afb613045ea1eb4a5c815a74a3bde4"
+    },
+    {
+      "path": ".pytest_cache/README.md",
+      "sha256": "73fd6fccdd802c419a6b2d983d6c3173b7da97558ac4b589edec2dfe443db9ad"
+    },
+    {
+      "path": ".pytest_cache/v/cache/lastfailed",
+      "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+    },
+    {
+      "path": ".pytest_cache/v/cache/nodeids",
+      "sha256": "533d73369e9e5b0b26469830dfc4a2a32b569e6dfb1bee38a600f00847ab2456"
+    },
+    {
+      "path": "00_READ_FIRST.md",
+      "sha256": "8fd8e88de7c5bedfb05de318f5d817ae8c44d75783e4c2fa2177d5ac53cb6974"
+    },
+    {
+      "path": "APEX_GEN5_CANONICAL.md",
+      "sha256": "28273456a1b3a57c3e5dac0f09d2c00bfdc2f6c86b6bb5ccdf606c3c5b9f258e"
+    },
+    {
+      "path": "APEX_GEN5_CANONICALIZED_PHASE113_CORRECTED.md",
+      "sha256": "bdc481483a179949083e93705eed252e4f06518cbcc7576e66e3199e6164fd6e"
+    },
+    {
+      "path": "FINAL_375_RECONCILIATION.json",
+      "sha256": "8b71b410d42b268576efef08144d5e0f4566732b642f66b54eff443b0fa733db"
+    },
+    {
+      "path": "FINAL_CLEAN_ROOM_AUDIT.md",
+      "sha256": "11548f6df678818535dfb5c1ecb4a2e9a326eec1e7f439445e3d8dafd498536e"
+    },
+    {
+      "path": "FINAL_DEPENDENCY_GRAPH.json",
+      "sha256": "f2e85cff4b0741bb2baf7f60328290eefdb87515fcb704c63e076e811b4a70ad"
+    },
+    {
+      "path": "FINAL_EXECUTABLE_VERIFICATION.md",
+      "sha256": "228f9e2d2b90427df7dfcc6d2fb56439ae211d0404fe1812bad2bb5434852aac"
+    },
+    {
+      "path": "FINAL_FEATURE_REGISTRY.json",
+      "sha256": "2a55ddc027b2865cbd14291dc6613ed3fc523d83c20c2d2d3e6c0c30ba733392"
+    },
+    {
+      "path": "FINAL_PAPER_ACCEPTANCE.md",
+      "sha256": "dbebcfe9b059d5dcc6662fb7e0293eee261c9029b3ac4964d333b7ab1f79bc1c"
+    },
+    {
+      "path": "FINAL_PATTERN_REGISTRY.json",
+      "sha256": "776bca182fe2768ff09fd6e5026b888b6c01c6b85c73439378ab2fca305954d6"
+    },
+    {
+      "path": "FINAL_PROVENANCE_MANIFEST.json",
+      "sha256": "0df9a902e273ded91adac460f7d7ca4fe8401a1384989adbad996a246ba4e193"
+    },
+    {
+      "path": "FINAL_RELEASE_GATE.md",
+      "sha256": "1553bbb53aebab6660d22904face96183d7d09a65e121cbf61e2bfa4fd9e6753"
+    },
+    {
+      "path": "FINAL_REQUIREMENTS_TRACEABILITY.json",
+      "sha256": "42b9574dbaec54b0dbca924c7bd77f565a5dc75bdc79317390c8184a6fafb3ef"
+    },
+    {
+      "path": "README.md",
+      "sha256": "fbd21b251703b8eb699d35ab554de56d842c38c1c2b8b968e614ff685fe61c26"
+    },
+    {
+      "path": "apex/__init__.py",
+      "sha256": "08fbe432bffe89725b5ded6462a1f2f73e145203a548181f60a8e0e7fed10e45"
+    },
+    {
+      "path": "apex/app.py",
+      "sha256": "e9a50d798d272043ebdd1f5e77df0d907ba8b7accebca1789856ac4dcc0738f0"
+    },
+    {
+      "path": "apex/config.py",
+      "sha256": "8f9eeab011e7a8d639f117f7e07f69f01a8a730f2abdd28110b92a75bbac5b3b"
+    },
+    {
+      "path": "apex/context.py",
+      "sha256": "ef5505f786f0570c5fb1ef156b687fed8493d2367abcf0700399a826c7111027"
+    },
+    {
+      "path": "apex/engines.py",
+      "sha256": "2204fa313bb6760df920bf0313b32632f4040cef05b09c464b521b6e489208a9"
+    },
+    {
+      "path": "apex/errors.py",
+      "sha256": "482baa9ce8a5119b36dfd1adb2fa7c868a905505fd0d2e93897c44ee6818c815"
+    },
+    {
+      "path": "apex/evidence.py",
+      "sha256": "6e4047f0e091c5cdaa3b374b1d88634cb6fdd94d4e42a19e996c084515225287"
+    },
+    {
+      "path": "apex/execution.py",
+      "sha256": "743c9219faf3925df4c3356d555debe0702eb052e0cfa0c62dea6992c41a5634"
+    },
+    {
+      "path": "apex/features.py",
+      "sha256": "a5b8ba25a505266d534238e760c55fcf62739d5bd0ee84025e874e91a6362b4b"
+    },
+    {
+      "path": "apex/identity.py",
+      "sha256": "b0cd2b90adbb5f42071915a11a8defd3defdde3bdc484715cad2e921759c494e"
+    },
+    {
+      "path": "apex/ledger.py",
+      "sha256": "af038e2511eb8004743bcb6db2ee1d89efed3f5e90a309f5d18283cf8811301f"
+    },
+    {
+      "path": "apex/market.py",
+      "sha256": "24218ad92ed36b99090cba248e8659ef4e7a4ef16b7636805b7feceb820e655a"
+    },
+    {
+      "path": "apex/nonfinite.py",
+      "sha256": "4cd4474fa9f6c2b319eb7a0660317d09fafe7f65fed14b846e723225b5fad3d0"
+    },
+    {
+      "path": "apex/parameters.py",
+      "sha256": "246981d2c36f13ddf8c05ff2d96eb49ba2d933018a62dbf08c91ac92fde0ccc0"
+    },
+    {
+      "path": "apex/patterns.py",
+      "sha256": "80f4ec86589037c5d49b8aac00975fb5641c63f8342cb9bb43d0a4da221bf8a6"
+    },
+    {
+      "path": "apex/persistence.py",
+      "sha256": "fa19c780dc6dc6b61d1153a1e7768f9fb1f00b1a0d6ee81cbad967a2f6a98047"
+    },
+    {
+      "path": "apex/pipeline.py",
+      "sha256": "5d163d843fff093626cd977be7a9c79cc7aefd91df009c0581efbe31bf0a9c04"
+    },
+    {
+      "path": "apex/quality.py",
+      "sha256": "c18abd68da28d0942ded1c8869c49c8fdbe2fb9650f79ea898a6725e5b6197f6"
+    },
+    {
+      "path": "apex/risk.py",
+      "sha256": "c086f4c37706280f55021e7791ef022a2b1fd66a4cce77915d3fe2d6035eed92"
+    },
+    {
+      "path": "apex/runtime_mode.py",
+      "sha256": "9b6a885e14ba5c4d6a11d6917f5c20092cc5e14c6d747c34d29b9fc6e60d9a10"
+    },
+    {
+      "path": "apex/setup_strategy.py",
+      "sha256": "aa7e5c12562befed0865ae6069ca8223d2e6b4ebdf49192ef020574688fa04df"
+    },
+    {
+      "path": "apex/snapshot.py",
+      "sha256": "dbe484da070f829ff5a21595e81aa941c34fab15134d8b97d214544ce8a41907"
+    },
+    {
+      "path": "apex/telegram_plane.py",
+      "sha256": "077ebef05b49a3e29f340d50c11da9037f81429e0ad54e1a4c30e20ceb94b3f8"
+    },
+    {
+      "path": "apex/time_model.py",
+      "sha256": "04c2e38c3357398b6c94c5fc7b8684a1a16cf5a357be3863e3303cba8eae662f"
+    },
+    {
+      "path": "apex/toobit.py",
+      "sha256": "9c2c34b9f9cc95d8c1ce07eb58e13dd7984a68fec43c53cc03142926bcba6019"
+    },
+    {
+      "path": "pyproject.toml",
+      "sha256": "590c0f88a0befa7a882a5d895d32a494f80b0bb5009f2a6936fd3fbe1fc7b494"
+    },
+    {
+      "path": "requirements.txt",
+      "sha256": "895517ef0aadd238b26b45328a6a38125561a28b5008d469ceb6fb6daee62220"
+    },
+    {
+      "path": "scripts/release_validate.py",
+      "sha256": "b752d76a02de7df742e2602a3ee3b925e1cbaf9b657d3ed6400f32e3f707a581"
+    },
+    {
+      "path": "scripts/termux_install.sh",
+      "sha256": "50065aeb8d6c4342f9eb0b127644b7e6df676c9a2cf4ca2aa158b06427d2a242"
+    },
+    {
+      "path": "tests/test_core.py",
+      "sha256": "471af910444b0208be991ff2d9e02168d710850ea84702869006309f5a44e294"
+    }
+  ]
+}

@@ -1,0 +1,668 @@
+[
+  {
+    "feature_id": "F01",
+    "name": "F01",
+    "domain": "PRICE",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F02",
+    "name": "F02",
+    "domain": "PRICE",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F03",
+    "name": "F03",
+    "domain": "PRICE",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F04",
+    "name": "F04",
+    "domain": "PRICE",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F05",
+    "name": "F05",
+    "domain": "VOLUME",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F06",
+    "name": "F06",
+    "domain": "RANGE",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F07",
+    "name": "F07",
+    "domain": "RANGE",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F08",
+    "name": "F08",
+    "domain": "RETURN",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F09",
+    "name": "F09",
+    "domain": "TREND",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F10",
+    "name": "F10",
+    "domain": "TREND",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F11",
+    "name": "F11",
+    "domain": "TREND",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F12",
+    "name": "F12",
+    "domain": "TREND",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F13",
+    "name": "F13",
+    "domain": "TREND",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F14",
+    "name": "F14",
+    "domain": "MOMENTUM",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F15",
+    "name": "F15",
+    "domain": "MOMENTUM",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F16",
+    "name": "F16",
+    "domain": "VOLATILITY",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F17",
+    "name": "F17",
+    "domain": "VOLATILITY",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F18",
+    "name": "F18",
+    "domain": "VOLATILITY",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F19",
+    "name": "F19",
+    "domain": "VOLUME",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F20",
+    "name": "F20",
+    "domain": "VOLUME",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F21",
+    "name": "F21",
+    "domain": "STRUCTURE",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F22",
+    "name": "F22",
+    "domain": "STRUCTURE",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F23",
+    "name": "F23",
+    "domain": "STRUCTURE",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F24",
+    "name": "F24",
+    "domain": "MOMENTUM",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F25",
+    "name": "F25",
+    "domain": "RETURN",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F26",
+    "name": "F26",
+    "domain": "RETURN",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F27",
+    "name": "F27",
+    "domain": "RANGE",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F28",
+    "name": "F28",
+    "domain": "RANGE",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F29",
+    "name": "F29",
+    "domain": "VOLUME",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F30",
+    "name": "F30",
+    "domain": "OI",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F31",
+    "name": "F31",
+    "domain": "OI",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F32",
+    "name": "F32",
+    "domain": "OI",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F33",
+    "name": "F33",
+    "domain": "IMBALANCE",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F34",
+    "name": "F34",
+    "domain": "VOLUME",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F35",
+    "name": "F35",
+    "domain": "RANGE",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F36",
+    "name": "F36",
+    "domain": "VOLATILITY",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F37",
+    "name": "F37",
+    "domain": "VOLATILITY",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F38",
+    "name": "F38",
+    "domain": "TREND",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F39",
+    "name": "F39",
+    "domain": "TREND",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F40",
+    "name": "F40",
+    "domain": "TREND",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F41",
+    "name": "F41",
+    "domain": "TREND",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F42",
+    "name": "F42",
+    "domain": "TREND",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F43",
+    "name": "F43",
+    "domain": "TREND",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F44",
+    "name": "F44",
+    "domain": "RANGE",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F45",
+    "name": "F45",
+    "domain": "VOLATILITY",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F46",
+    "name": "F46",
+    "domain": "VOLATILITY",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F47",
+    "name": "F47",
+    "domain": "RANGE",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F48",
+    "name": "F48",
+    "domain": "MOMENTUM",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F49",
+    "name": "F49",
+    "domain": "MOMENTUM",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F50",
+    "name": "F50",
+    "domain": "MOMENTUM",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F51",
+    "name": "F51",
+    "domain": "VOLUME",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F52",
+    "name": "F52",
+    "domain": "VOLUME",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F53",
+    "name": "F53",
+    "domain": "PRICE",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F54",
+    "name": "F54",
+    "domain": "PRICE",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F55",
+    "name": "F55",
+    "domain": "PRICE",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F56",
+    "name": "F56",
+    "domain": "RANGE",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F57",
+    "name": "F57",
+    "domain": "RANGE",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F58",
+    "name": "F58",
+    "domain": "RANGE",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F59",
+    "name": "F59",
+    "domain": "RANGE",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F60",
+    "name": "F60",
+    "domain": "STRUCTURE",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F61",
+    "name": "F61",
+    "domain": "STRUCTURE",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F62",
+    "name": "F62",
+    "domain": "RETURN",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F63",
+    "name": "F63",
+    "domain": "META",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F64",
+    "name": "F64",
+    "domain": "VOLUME",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F65",
+    "name": "F65",
+    "domain": "VOLUME",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F66",
+    "name": "F66",
+    "domain": "STRUCTURE",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F67",
+    "name": "F67",
+    "domain": "STRUCTURE",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F68",
+    "name": "F68",
+    "domain": "MOMENTUM",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F69",
+    "name": "F69",
+    "domain": "MOMENTUM",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F70",
+    "name": "F70",
+    "domain": "MOMENTUM",
+    "classification": "NATIVE",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F71",
+    "name": "F71",
+    "domain": "EXTERNAL",
+    "classification": "EXTERNAL",
+    "runtime_admitted": false,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F72",
+    "name": "F72",
+    "domain": "MICROSTRUCTURE",
+    "classification": "PROXY",
+    "runtime_admitted": false,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F73",
+    "name": "F73",
+    "domain": "FORBIDDEN",
+    "classification": "RESEARCH_ONLY",
+    "runtime_admitted": false,
+    "warmup": 1,
+    "producer": "feature_engine"
+  },
+  {
+    "feature_id": "F74",
+    "name": "F74",
+    "domain": "QUALITY",
+    "classification": "DERIVED",
+    "runtime_admitted": true,
+    "warmup": 1,
+    "producer": "feature_engine"
+  }
+]

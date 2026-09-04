@@ -1,0 +1,10 @@
+{
+  "generated_at_utc": "2026-09-04T22:26:34.199902+00:00",
+  "code_version": "5.0.0-paper",
+  "schema_version": 1,
+  "canonical_spec": "APEX_GEN5_CANONICALIZED_PHASE113_CORRECTED.md",
+  "canonical_spec_sha256": "bdc481483a179949083e93705eed252e4f06518cbcc7576e66e3199e6164fd6e",
+  "parameter_package": "pp-default-1",
+  "exchange": "TOOBIT",
+  "runtime_target": "PAPER"
+}

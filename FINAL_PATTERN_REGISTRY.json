@@ -1,0 +1,109 @@
+[
+  {
+    "pat_id": "PAT01",
+    "name": "BOS_CONTINUATION",
+    "family": "STRUCTURE",
+    "admission": "RUNTIME_ADMITTED",
+    "required_engines": [
+      "E01",
+      "E09"
+    ]
+  },
+  {
+    "pat_id": "PAT02",
+    "name": "CHOCH_REVERSAL",
+    "family": "STRUCTURE",
+    "admission": "RUNTIME_ADMITTED",
+    "required_engines": [
+      "E01",
+      "E10"
+    ]
+  },
+  {
+    "pat_id": "PAT03",
+    "name": "LIQUIDITY_SWEEP",
+    "family": "LIQUIDITY",
+    "admission": "RUNTIME_ADMITTED",
+    "required_engines": [
+      "E02",
+      "E01"
+    ]
+  },
+  {
+    "pat_id": "PAT04",
+    "name": "FVG_IMBALANCE",
+    "family": "IMBALANCE",
+    "admission": "RUNTIME_ADMITTED",
+    "required_engines": [
+      "E05"
+    ]
+  },
+  {
+    "pat_id": "PAT05",
+    "name": "ORDER_BLOCK",
+    "family": "ORDER_BLOCK",
+    "admission": "RUNTIME_ADMITTED",
+    "required_engines": [
+      "E06"
+    ]
+  },
+  {
+    "pat_id": "PAT06",
+    "name": "TREND_PULLBACK",
+    "family": "TREND",
+    "admission": "RUNTIME_ADMITTED",
+    "required_engines": [
+      "E09",
+      "E10"
+    ]
+  },
+  {
+    "pat_id": "PAT07",
+    "name": "MOMENTUM_BREAK",
+    "family": "MOMENTUM",
+    "admission": "RUNTIME_ADMITTED",
+    "required_engines": [
+      "E10"
+    ]
+  },
+  {
+    "pat_id": "PAT08",
+    "name": "VOL_EXPANSION",
+    "family": "VOLATILITY",
+    "admission": "RUNTIME_ADMITTED",
+    "required_engines": [
+      "E04",
+      "E11"
+    ]
+  },
+  {
+    "pat_id": "PAT09",
+    "name": "WYCKOFF_SPRING",
+    "family": "WYCKOFF",
+    "admission": "KNOWN_NOT_ADMITTED",
+    "required_engines": [
+      "E08"
+    ]
+  },
+  {
+    "pat_id": "PAT10",
+    "name": "ICEBERG",
+    "family": "MICROSTRUCTURE",
+    "admission": "KNOWN_NOT_ADMITTED",
+    "required_engines": []
+  },
+  {
+    "pat_id": "PAT11",
+    "name": "SPOOFING",
+    "family": "MICROSTRUCTURE",
+    "admission": "EXCLUDED",
+    "required_engines": []
+  },
+  {
+    "pat_id": "PAT12",
+    "name": "FUNDING_SQUEEZE",
+    "family": "FUNDING",
+    "admission": "EXCLUDED",
+    "required_engines": []
+  }
+]
