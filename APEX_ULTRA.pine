@@ -1,0 +1,924 @@
+//@version=6
+// ═════════════════════════════════════════════════════════════════════════════
+// ║  APEX ULTRA v1 — Unified 12-Engine Confluence Strategy (sina)            ║
+// ═════════════════════════════════════════════════════════════════════════════
+// ║  Architecture (APEX GEN5 "five stations", Pine-native):                  ║
+// ║  Station 1  Data quality & warm-up   (epsilon, ATR floor, history gate)  ║
+// ║  Station 2  Twelve Analyst Engines   (E01–E12 → evidence scores)         ║
+// ║  Station 3  Context & Confluence     (weighted aggregation, conflict     ║
+// ║             penalty 0.40, thin-evidence penalty 0.25, regime multiplier) ║
+// ║  Station 4  Setup Gates              (min score, min families, vetoes)   ║
+// ║  Station 5  Risk Kernel & Execution  (structural stops, TP1 partial,     ║
+// ║             breakeven, chandelier trail, daily-loss cap, streak cooldown)║
+// ║                                                                          ║
+// ║  Engines: E01 Structure · E02 Liquidity · E03 Volume · E04 Volatility    ║
+//   E05 FVG · E06 Order Blocks · E07 RTM/ICT · E08 Wyckoff · E09 Trend      ║
+// ║  E10 Momentum · E11 Regime · E12 Temporal                                ║
+// ║                                                                          ║
+//   Non-repainting: closed-bar evaluation only (calc_on_every_tick=false),  ║
+// ║  pivots confirmed by right-side bars, MTF via lookahead_off.             ║
+// ║  Not financial advice. Validate on your symbol/timeframe first.          ║
+// ═════════════════════════════════════════════════════════════════════════════
+strategy("APEX ULTRA v1 — Unified 12-Engine Confluence (sina)",
+     overlay = true,
+     max_labels_count = 500,
+     max_lines_count  = 500,
+     max_boxes_count  = 200,
+     initial_capital  = 10000,
+     default_qty_type = strategy.percent_of_equity,
+     default_qty_value = 100,
+     commission_type  = strategy.commission.percent,
+     commission_value = 0.05,
+     slippage         = 1,
+     process_orders_on_close = true)
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SECTION 0 · INPUTS
+// ═════════════════════════════════════════════════════════════════════════════
+G_CORE   = "0 · Core / Decision"
+G_TREND  = "1 · E09 Trend Engine"
+G_STRUCT = "2 · E01 Structure Engine"
+G_LIQ    = "3 · E02/E05/E06/E07/E08 Liquidity · FVG · OB · RTM · Wyckoff"
+G_VOLU   = "4 · E03 Volume Engine"
+G_VOLAT  = "5 · E04 Volatility Engine"
+G_MOM    = "6 · E10 Momentum Engine"
+G_REG    = "7 · E11 Regime Engine"
+G_TEMP   = "8 · E12 Temporal Engine"
+G_CNDL   = "9 · Candle Intelligence"
+G_RISK   = "10 · Risk Kernel"
+G_VIZ    = "11 · Visualization"
+
+// ── 0 · Core / Decision ──────────────────────────────────────────────────────
+in_atrLen      = input.int(14, "ATR Length", minval = 5, maxval = 100, group = G_CORE, tooltip = "Wilder ATR period. Volatility backbone for every engine, stop distance and normalization.")
+in_minScore    = input.int(50, "Min Confluence Score (±)", minval = 10, maxval = 95, group = G_CORE, tooltip = "Final confluence score (0–100) required to authorize a signal. Higher = fewer, higher-quality setups.")
+in_minFamilies = input.int(3, "Min Independent Families Agreeing (1–7)", minval = 1, maxval = 7, group = G_CORE, tooltip = "Minimum number of independent engine families (Structure/Liquidity/Volume/Volatility/Momentum/Trend/Candle) that must agree with the signal direction.")
+in_conflictPen = input.float(0.40, "Conflict Penalty (0–1)", minval = 0.0, maxval = 1.0, step = 0.05, group = G_CORE, tooltip = "APEX SL-2 conflict policy: fraction of the score removed per share of active families that disagree with the final direction.")
+in_redundPen   = input.float(0.25, "Thin-Evidence Penalty (0–1)", minval = 0.0, maxval = 1.0, step = 0.05, group = G_CORE, tooltip = "APEX SL-2 redundancy policy: discount applied when fewer than 3 independent families are active (the score is built on thin evidence).")
+in_cooldown    = input.int(12, "Signal Cooldown (bars)", minval = 0, maxval = 200, group = G_CORE, tooltip = "Minimum bars between consecutive signal emissions. Prevents chop-chasing after a failed setup.")
+in_allowFlip   = input.bool(true, "Allow Reversal (flip on opposite signal)", group = G_CORE, tooltip = "When in a position, an opposite qualifying signal closes and reverses. Disable to only add fresh signals when flat.")
+
+w_struct = input.float(1.0, "Weight · Structure",  minval = 0.0, maxval = 3.0, step = 0.1, group = G_CORE, tooltip = "Confluence weight of the Structure engine (BOS/CHoCH).")
+w_liq    = input.float(1.0, "Weight · Liquidity",  minval = 0.0, maxval = 3.0, step = 0.1, group = G_CORE, tooltip = "Confluence weight of the Liquidity engine (sweeps, FVG, OB, premium/discount, OTE).")
+w_volu   = input.float(1.0, "Weight · Volume",     minval = 0.0, maxval = 3.0, step = 0.1, group = G_CORE, tooltip = "Confluence weight of the Volume engine (VWAP, OBV, VFI, CMF, spike, POC).")
+w_volat  = input.float(0.8, "Weight · Volatility", minval = 0.0, maxval = 3.0, step = 0.1, group = G_CORE, tooltip = "Confluence weight of the Volatility engine (squeeze, ATR-ratio health).")
+w_mom    = input.float(1.0, "Weight · Momentum",   minval = 0.0, maxval = 3.0, step = 0.1, group = G_CORE, tooltip = "Confluence weight of the Momentum engine (RSI/divergence, MACD, WaveTrend, MFI, Stoch).")
+w_trend  = input.float(1.5, "Weight · Trend",      minval = 0.0, maxval = 3.0, step = 0.1, group = G_CORE, tooltip = "Confluence weight of the Trend engine (SuperTrend, ZLSMA, EMA stack, ADX, HTF bias). Trend is king — default 1.5.")
+w_cndl   = input.float(0.8, "Weight · Candle",     minval = 0.0, maxval = 3.0, step = 0.1, group = G_CORE, tooltip = "Confluence weight of the Candle engine (displacement, rejection, inside-bar breakout).")
+
+// ── 1 · E09 Trend Engine ─────────────────────────────────────────────────────
+in_htf1     = input.timeframe("240", "HTF 1", group = G_TREND, tooltip = "Primary macro timeframe for structural bias (APEX HTF context).")
+in_htf2     = input.timeframe("D", "HTF 2", group = G_TREND, tooltip = "Secondary macro timeframe for structural bias.")
+in_htfW1    = input.float(0.6, "HTF 1 Weight", minval = 0.0, maxval = 1.0, step = 0.05, group = G_TREND, tooltip = "Weight of HTF 1 bias in the combined higher-timeframe bias.")
+in_htfW2    = input.float(0.4, "HTF 2 Weight", minval = 0.0, maxval = 1.0, step = 0.05, group = G_TREND, tooltip = "Weight of HTF 2 bias in the combined higher-timeframe bias.")
+in_stAtr    = input.int(10, "SuperTrend ATR Length", minval = 2, maxval = 100, group = G_TREND, tooltip = "ATR period for the local SuperTrend band.")
+in_stMult   = input.float(3.0, "SuperTrend Multiplier", minval = 0.5, maxval = 10.0, step = 0.1, group = G_TREND, tooltip = "ATR multiplier for the local SuperTrend band.")
+in_zlsma    = input.int(32, "ZLSMA Length", minval = 5, maxval = 200, group = G_TREND, tooltip = "Zero-Lag Least-Squares MA length. Primary dynamic trend line and HTF alignment filter.")
+in_emaF     = input.int(21, "EMA Fast", minval = 2, maxval = 200, group = G_TREND, tooltip = "Fast EMA of the trend stack.")
+in_emaM     = input.int(50, "EMA Mid", minval = 2, maxval = 400, group = G_TREND, tooltip = "Medium EMA of the trend stack.")
+in_emaS     = input.int(200, "EMA Slow", minval = 10, maxval = 500, group = G_TREND, tooltip = "Slow EMA of the trend stack.")
+in_adxLen   = input.int(14, "ADX Length", minval = 2, maxval = 100, group = G_TREND, tooltip = "Wilder ADX/DMI period (trend strength).")
+in_adxMin   = input.int(20, "ADX Trend Threshold", minval = 5, maxval = 50, group = G_TREND, tooltip = "ADX level considered 'trending'. Below it the regime engine classifies RANGE/CHOP.")
+
+// ── 2 · E01 Structure Engine ─────────────────────────────────────────────────
+in_swingLen = input.int(5, "Swing Pivot Length (left = right)", minval = 2, maxval = 15, group = G_STRUCT, tooltip = "Williams fractal length. A pivot is confirmed `length` bars after its peak — fully non-repainting.")
+in_dispAtr  = input.float(1.5, "Displacement (×ATR)", minval = 0.5, maxval = 5.0, step = 0.1, group = G_STRUCT, tooltip = "Minimum bar range in ATR units for a break to be scored as displacement (strong institutional push).")
+
+// ── 3 · E02/E05/E06/E07/E08 Liquidity · FVG · OB · RTM · Wyckoff ────────────
+in_liqLB   = input.int(20, "Sweep Lookback (bars)", minval = 5, maxval = 200, group = G_LIQ, tooltip = "Window used to define the liquidity pool (highest high / lowest low) that a wick must raid.")
+in_eqTol   = input.float(0.20, "Equal-Highs/Lows Tolerance (×ATR)", minval = 0.05, maxval = 1.0, step = 0.05, group = G_LIQ, tooltip = "Two confirmed swings within this ATR distance are treated as an equal-level liquidity pool (stacked stops).")
+in_fvgMin  = input.float(0.20, "Min FVG Width (×ATR)", minval = 0.0, maxval = 2.0, step = 0.1, group = G_LIQ, tooltip = "Minimum imbalance width for a Fair Value Gap to be tracked. APEX E05 min-width governance.")
+in_obAge   = input.int(48, "Order Block Max Age (bars)", minval = 5, maxval = 500, group = G_LIQ, tooltip = "An Order Block stops being valid after this many bars (APEX E06 expiry).")
+in_premLB  = input.int(50, "Premium/Discount Range (bars)", minval = 20, maxval = 500, group = G_LIQ, tooltip = "Range used to compute the equilibrium midline. Below = discount (buy zone), above = premium (sell zone). OTE = 61.8–79.2% of the range.")
+in_springV = input.float(1.2, "Wyckoff Spring/Upthrust Volume (×avg)", minval = 1.0, maxval = 5.0, step = 0.1, group = G_LIQ, tooltip = "E08: a sweep that reclaims the level WITH volume expansion is scored as a Wyckoff spring (bullish) / upthrust (bearish).")
+
+// ── 4 · E03 Volume Engine ────────────────────────────────────────────────────
+in_useVwap = input.bool(true, "Use VWAP", group = G_VOLU, tooltip = "Price-vs-VWAP bias (intraday only — VWAP is session-anchored).")
+in_vfiLen  = input.int(130, "VFI Length", minval = 10, maxval = 500, group = G_VOLU, tooltip = "Volume Flow Index lookback (log-return weighted volume flow).")
+in_vfiCoef = input.float(0.2, "VFI Coefficient", minval = 0.05, maxval = 1.0, step = 0.05, group = G_VOLU, tooltip = "Deviation cutoff: only volume flow beyond this volatility-scaled threshold counts.")
+in_vfiV    = input.float(2.5, "VFI Volume Cap (×avg)", minval = 1.0, maxval = 5.0, step = 0.1, group = G_VOLU, tooltip = "Caps anomalous volume bars (wash-trading guard) at this multiple of average volume.")
+in_cmfLen  = input.int(20, "CMF Length", minval = 5, maxval = 100, group = G_VOLU, tooltip = "Chaikin Money Flow period.")
+in_cmfLvl  = input.float(0.15, "CMF Threshold", minval = 0.0, maxval = 1.0, step = 0.05, group = G_VOLU, tooltip = "CMF level that confirms institutional participation.")
+in_spikeLB = input.int(20, "Volume Baseline Lookback", minval = 5, maxval = 100, group = G_VOLU, tooltip = "SMA period for the relative-volume baseline.")
+in_spikeM  = input.float(1.5, "Volume Spike (×avg)", minval = 1.0, maxval = 5.0, step = 0.1, group = G_VOLU, tooltip = "Relative volume required to score a participation spike.")
+in_pocBars = input.int(200, "Volume Profile POC Bars", minval = 50, maxval = 1000, group = G_VOLU, tooltip = "Bars scanned to build the high-volume node (POC).")
+in_pocBins = input.int(30, "Volume Profile Bins", minval = 10, maxval = 100, group = G_VOLU, tooltip = "Number of price bins in the profile. More = finer resolution, slower.")
+
+// ── 5 · E04 Volatility Engine ────────────────────────────────────────────────
+in_bbLen  = input.int(20, "Squeeze BB Length", minval = 5, maxval = 100, group = G_VOLAT, tooltip = "Bollinger period for the BB/Keltner squeeze (TTM momentum compression).")
+in_bbMult = input.float(2.0, "Squeeze BB Multiplier", minval = 0.5, maxval = 4.0, step = 0.1, group = G_VOLAT, tooltip = "Standard-deviation multiplier for squeeze Bollinger Bands.")
+in_kcLen  = input.int(20, "Squeeze KC Length", minval = 5, maxval = 100, group = G_VOLAT, tooltip = "Keltner period for the squeeze.")
+in_kcMult = input.float(1.5, "Squeeze KC Multiplier", minval = 0.5, maxval = 4.0, step = 0.1, group = G_VOLAT, tooltip = "ATR multiplier for squeeze Keltner Channels.")
+in_atrMinR= input.float(0.60, "Min ATR Ratio (dead-tape veto)", minval = 0.0, maxval = 3.0, step = 0.1, group = G_VOLAT, tooltip = "ATR/ATR-avg below this = compressed/dead tape → signals vetoed (no edge in a vacuum).")
+in_atrMaxR= input.float(3.0, "Max ATR Ratio (extreme-vol veto)", minval = 1.0, maxval = 6.0, step = 0.1, group = G_VOLAT, tooltip = "ATR/ATR-avg above this = news-driven extreme volatility → signals vetoed (risk kernel).")
+
+// ── 6 · E10 Momentum Engine ──────────────────────────────────────────────────
+in_rsiLen  = input.int(14, "RSI Length", minval = 2, maxval = 100, group = G_MOM, tooltip = "Wilder RSI period.")
+in_rsiL    = input.int(60, "RSI Bull Threshold", minval = 50, maxval = 90, group = G_MOM, tooltip = "RSI above this (and rising) scores bullish momentum.")
+in_rsiS    = input.int(40, "RSI Bear Threshold", minval = 10, maxval = 50, group = G_MOM, tooltip = "RSI below this (and falling) scores bearish momentum.")
+in_rsiDiv  = input.bool(true, "RSI Divergence", group = G_MOM, tooltip = "Classic divergence on confirmed RSI pivots vs price pivots (PIT-safe: pivot confirmed `len` bars late).")
+in_rsiPLen = input.int(5, "RSI Divergence Pivot Length", minval = 2, maxval = 15, group = G_MOM, tooltip = "Pivot length for divergence detection on both price and RSI.")
+in_macdF   = input.int(12, "MACD Fast", minval = 2, maxval = 100, group = G_MOM, tooltip = "MACD fast EMA.")
+in_macdS   = input.int(26, "MACD Slow", minval = 2, maxval = 200, group = G_MOM, tooltip = "MACD slow EMA.")
+in_macdSig = input.int(9, "MACD Signal", minval = 2, maxval = 100, group = G_MOM, tooltip = "MACD signal EMA.")
+in_wtN1    = input.int(10, "WaveTrend Channel", minval = 2, maxval = 100, group = G_MOM, tooltip = "WaveTrend channel length (Larry Connors).")
+in_wtN2    = input.int(21, "WaveTrend Average", minval = 2, maxval = 100, group = G_MOM, tooltip = "WaveTrend smoothing length.")
+in_mfiLen  = input.int(14, "MFI Length", minval = 2, maxval = 100, group = G_MOM, tooltip = "Money Flow Index period.")
+in_stochK  = input.int(14, "Stochastic %K", minval = 2, maxval = 100, group = G_MOM, tooltip = "Stochastic %K period.")
+in_stochD  = input.int(3, "Stochastic %D", minval = 1, maxval = 100, group = G_MOM, tooltip = "Stochastic %D smoothing.")
+in_cciLen  = input.int(20, "CCI Length", minval = 2, maxval = 100, group = G_MOM, tooltip = "Commodity Channel Index period.")
+
+// ── 7 · E11 Regime Engine ────────────────────────────────────────────────────
+in_regimeGate = input.bool(true, "Regime Gate (block counter-trend signals)", group = G_REG, tooltip = "APEX E11: in a confirmed TREND DOWN regime longs are vetoed (and vice versa). RANGE allows both, CHOP discounts the score.")
+in_regLook    = input.int(200, "Regime Percentile Lookback", minval = 50, maxval = 1000, group = G_REG, tooltip = "Rolling window for the min-max volatility/compression ranks (APEX E11 Method A).")
+
+// ── 8 · E12 Temporal Engine ──────────────────────────────────────────────────
+in_sessGate = input.bool(false, "Session Gate (UTC killzones only)", group = G_TEMP, tooltip = "Only signal inside the selected high-liquidity UTC sessions. Auto-disabled on D+ timeframes. E12 canonical windows (AI.2).")
+in_useAsia  = input.bool(false, "Asia 00:00–03:00 UTC (UTC_W0 core)", group = G_TEMP, tooltip = "Tokyo session window.")
+in_useLondon= input.bool(true, "London 07:00–10:00 UTC (UTC_W1 core)", group = G_TEMP, tooltip = "London open — highest institutional flow of the day for most pairs.")
+in_useNewyork= input.bool(true, "New York 12:30–15:30 UTC (UTC_W2 core)", group = G_TEMP, tooltip = "New York open / London–NY overlap start.")
+
+// ── 9 · Candle Intelligence ──────────────────────────────────────────────────
+in_cndlDisp  = input.float(1.5, "Displacement Body (×ATR)", minval = 0.5, maxval = 4.0, step = 0.1, group = G_CNDL, tooltip = "Candle body size (×ATR) that qualifies as an institutional displacement bar.")
+in_wickRatio = input.float(2.0, "Rejection Wick (×body)", minval = 1.0, maxval = 5.0, step = 0.1, group = G_CNDL, tooltip = "Wick-to-body ratio for a rejection candle (stop-hunt absorption).")
+
+// ── 10 · Risk Kernel ─────────────────────────────────────────────────────────
+in_riskPct  = input.float(1.0, "Risk Per Trade (% equity)", minval = 0.2, maxval = 5.0, step = 0.1, group = G_RISK, tooltip = "Position size = (equity × risk%) / stop distance. Fixed-fractional risk.")
+in_slAtr    = input.float(1.5, "Structural Stop Floor (×ATR)", minval = 0.5, maxval = 4.0, step = 0.1, group = G_RISK, tooltip = "Stop = structural level (last swing), but never tighter than this ATR multiple.")
+in_slCapAtr = input.float(2.5, "Structural Stop Cap (×ATR)", minval = 0.5, maxval = 8.0, step = 0.1, group = G_RISK, tooltip = "Stop is never wider than this ATR multiple (protects the R multiple).")
+in_tp1R     = input.float(1.5, "TP1 (R multiple)", minval = 0.5, maxval = 5.0, step = 0.1, group = G_RISK, tooltip = "First target in R. Closes TP1 % of the position.")
+in_tp1Pct   = input.float(50, "TP1 Close (%)", minval = 10, maxval = 90, group = G_RISK, tooltip = "Percentage of the position closed at TP1.")
+in_tp2R     = input.float(3.0, "TP2 (R multiple)", minval = 1.0, maxval = 10.0, step = 0.1, group = G_RISK, tooltip = "Final target in R for the remaining position.")
+in_beR      = input.float(1.0, "Breakeven Trigger (R)", minval = 0.0, maxval = 3.0, step = 0.1, group = G_RISK, tooltip = "Once price reaches +X R, the stop moves to entry + 0.1R (zero-risk trade).")
+in_trailAtr = input.float(2.5, "Chandelier Trail after TP1 (×ATR)", minval = 0.5, maxval = 8.0, step = 0.1, group = G_RISK, tooltip = "After TP1, the stop trails the highest high (lowest low) minus this ATR multiple.")
+in_maxDailyLoss = input.float(4.0, "Max Daily Loss (% day-start equity)", minval = 0.0, maxval = 20.0, step = 0.5, group = G_RISK, tooltip = "SL-5 aggregate-loss circuit breaker: no new entries for the rest of the day after this drawdown. Open positions stay protected by their stops.")
+in_streakLosses   = input.int(3, "Loss Streak → Cooldown", minval = 0, maxval = 10, group = G_RISK, tooltip = "After N consecutive losing trades, new entries are paused for the cooldown. 0 = disabled.")
+in_streakCooldown = input.int(8, "Streak Cooldown (bars)", minval = 0, maxval = 200, group = G_RISK, tooltip = "Bars to wait after a loss streak before re-arming.")
+
+// ── 11 · Visualization ───────────────────────────────────────────────────────
+in_showDash   = input.bool(true, "Dashboard", group = G_VIZ, tooltip = "Live confluence dashboard (top-right).")
+in_showFVG    = input.bool(true, "FVG Boxes", group = G_VIZ, tooltip = "Draw tracked Fair Value Gaps (green = bullish, red = bearish).")
+in_showOB     = input.bool(true, "Order Blocks", group = G_VIZ, tooltip = "Draw fresh Order Blocks (last 12).")
+in_showSwings = input.bool(true, "Swing Points", group = G_VIZ, tooltip = "Plot confirmed swing highs/lows (fractal pivots).")
+in_showLines  = input.bool(true, "ZLSMA / SuperTrend / VWAP / POC / Stop", group = G_VIZ, tooltip = "Core trend lines plus the live stop line of the open position.")
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SECTION 1 · STATION 1 — DATA QUALITY & SHARED MARKET STATE
+// ═════════════════════════════════════════════════════════════════════════════
+float eps      = syminfo.mintick * 10
+float atr      = ta.atr(in_atrLen)
+float atrSafe  = math.max(atr, eps)
+float atrAvg   = ta.sma(atr, in_atrLen)
+float atrRatio = atrAvg > 0 ? atr / atrAvg : 1.0
+
+float rg       = high - low
+float body_    = math.abs(close - open)
+float uWick    = high - math.max(open, close)
+float lWick    = math.min(open, close) - low
+float closePos = (close - low) / math.max(rg, eps)
+
+float volSma   = ta.sma(volume, in_spikeLB)
+float volRatio = volSma > 0 ? volume / volSma : 0.0
+
+// ── shared trend primitives (computed ONCE — efficiency) ────────────────────
+float lsma1   = ta.linreg(close, in_zlsma, 0)
+float lsma2   = ta.linreg(lsma1, in_zlsma, 0)
+float zlsma   = lsma1 + (lsma1 - lsma2)
+bool  zlsmaUp = zlsma > zlsma[1]
+
+[stLine, stDir] = ta.supertrend(in_stMult, in_stAtr)
+float emaF = ta.ema(close, in_emaF)
+float emaM = ta.ema(close, in_emaM)
+float emaS = ta.ema(close, in_emaS)
+[diPlus, diMinus, adx] = ta.dmi(in_adxLen, in_adxLen)
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SECTION 2 · E09 TREND — HTF CONTEXT (2 security calls, lookahead_off)
+// ═════════════════════════════════════════════════════════════════════════════
+[htf1C, htf1EF, htf1EM, htf1ES, htf1Z1, htf1Z2] = request.security(syminfo.tickerid, in_htf1,
+     [close, ta.ema(close, in_emaF), ta.ema(close, in_emaM), ta.ema(close, in_emaS),
+      ta.linreg(close, in_zlsma, 0), ta.linreg(ta.linreg(close, in_zlsma, 0), in_zlsma, 0)],
+     barmerge.gaps_off, barmerge.lookahead_off)
+[htf1StLine, htf1StDir] = request.security(syminfo.tickerid, in_htf1, ta.supertrend(in_stMult, in_stAtr), barmerge.gaps_off, barmerge.lookahead_off)
+
+[htf2C, htf2EF, htf2EM, htf2ES, htf2Z1, htf2Z2] = request.security(syminfo.tickerid, in_htf2,
+     [close, ta.ema(close, in_emaF), ta.ema(close, in_emaM), ta.ema(close, in_emaS),
+      ta.linreg(close, in_zlsma, 0), ta.linreg(ta.linreg(close, in_zlsma, 0), in_zlsma, 0)],
+     barmerge.gaps_off, barmerge.lookahead_off)
+[htf2StLine, htf2StDir] = request.security(syminfo.tickerid, in_htf2, ta.supertrend(in_stMult, in_stAtr), barmerge.gaps_off, barmerge.lookahead_off)
+
+f_htfBias(float c, float ef, float em, float es, float z1, float z2, int stDirH) =>
+    float zl = z1 + (z1 - z2)
+    int s = 0
+    s += ef > em ? 1 : ef < em ? -1 : 0
+    s += em > es ? 1 : em < es ? -1 : 0
+    s += c > zl ? 1 : c < zl ? -1 : 0
+    s += stDirH == -1 ? 1 : stDirH == 1 ? -1 : 0
+    s >= 3 ? 1 : s <= -3 ? -1 : 0
+
+int htfBias1 = f_htfBias(htf1C, htf1EF, htf1EM, htf1ES, htf1Z1, htf1Z2, htf1StDir)
+int htfBias2 = f_htfBias(htf2C, htf2EF, htf2EM, htf2ES, htf2Z1, htf2Z2, htf2StDir)
+float htfWSum = in_htfW1 + in_htfW2
+float htfBias = htfWSum > 0 ? (htfBias1 * in_htfW1 + htfBias2 * in_htfW2) / htfWSum : 0.0  // -1 .. +1
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SECTION 3 · E01 STRUCTURE — SWINGS, BOS, CHoCH
+// ═════════════════════════════════════════════════════════════════════════════
+float ph = ta.pivothigh(high, in_swingLen, in_swingLen)
+float pl = ta.pivotlow(low, in_swingLen, in_swingLen)
+
+var float lastSH  = na
+var int   lastSHBar = na
+var float lastSL  = na
+var int   lastSLBar = na
+var int   structTrend = 0          // +1 up · -1 down · 0 unknown
+
+var float[] shHist = array.new_float()
+var float[] slHist = array.new_float()
+
+if not na(ph)
+    lastSH  := ph
+    lastSHBar := bar_index - in_swingLen
+    array.push(shHist, ph)
+    if array.size(shHist) > 8
+        array.shift(shHist)
+if not na(pl)
+    lastSL  := pl
+    lastSLBar := bar_index - in_swingLen
+    array.push(slHist, pl)
+    if array.size(slHist) > 8
+        array.shift(slHist)
+
+// Event semantics: fires on the single bar where the close crosses the level
+bool bosUp = not na(lastSH) and close > lastSH and nz(close[1], lastSH) <= lastSH
+bool bosDn = not na(lastSL) and close < lastSL and nz(close[1], lastSL) >= lastSL
+bool chochUp = bosUp and structTrend == -1
+bool chochDn = bosDn and structTrend == 1
+if bosUp or chochUp
+    structTrend := 1
+if bosDn or chochDn
+    structTrend := -1
+
+float breakMagUp = bosUp and not na(lastSH) ? (close - lastSH) / atrSafe : 0.0
+float breakMagDn = bosDn and not na(lastSL) ? (lastSL - close) / atrSafe : 0.0
+
+var float structScore = 0.0
+structScore := bosUp ? (breakMagUp >= in_dispAtr ? 25.0 : 15.0) + (chochUp ? 10.0 : 0.0)
+     : bosDn ? -((breakMagDn >= in_dispAtr ? 25.0 : 15.0) + (chochDn ? 10.0 : 0.0))
+     : structScore * 0.85
+
+// HH/HL quality (regime input)
+bool hh = array.size(shHist) >= 2 and array.get(shHist, array.size(shHist) - 1) > array.get(shHist, array.size(shHist) - 2)
+bool lh = array.size(shHist) >= 2 and array.get(shHist, array.size(shHist) - 1) < array.get(shHist, array.size(shHist) - 2)
+bool hl = array.size(slHist) >= 2 and array.get(slHist, array.size(slHist) - 1) > array.get(slHist, array.size(slHist) - 2)
+bool ll = array.size(slHist) >= 2 and array.get(slHist, array.size(slHist) - 1) < array.get(slHist, array.size(slHist) - 2)
+int structDir = hh and hl ? 1 : lh and ll ? -1 : structTrend
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SECTION 4 · E11 REGIME (compact: ADX + vol rank + compression + structure)
+// ═════════════════════════════════════════════════════════════════════════════
+float atrLo  = ta.lowest(atrRatio, in_regLook)
+float atrHi  = ta.highest(atrRatio, in_regLook)
+float volRank = atrHi > atrLo ? (atrRatio - atrLo) / (atrHi - atrLo) : 0.5
+
+float bbBasis = ta.sma(close, in_bbLen)
+float bbDev   = in_bbMult * ta.stdev(close, in_bbLen)
+float bbUpper = bbBasis + bbDev
+float bbLower = bbBasis - bbDev
+float bbW     = bbBasis != 0 ? (2 * bbDev) / bbBasis : 0.0
+float bbWLo   = ta.lowest(bbW, in_regLook)
+float bbWHi   = ta.highest(bbW, in_regLook)
+float compRank = bbWHi > bbWLo ? (bbWLo - bbW) / (bbWHi - bbWLo) : 0.5   // 1 = tightest
+
+int regime = 0
+string regimeTxt = "?"
+if nz(adx) >= in_adxMin
+    if structDir == 1 and zlsmaUp
+        regime := 1
+        regimeTxt := "TREND UP"
+    else if structDir == -1 and not zlsmaUp
+        regime := -1
+        regimeTxt := "TREND DOWN"
+    else
+        regime := 2
+        regimeTxt := "TREND (weakened)"
+else
+    regime := volRank < 0.40 and compRank > 0.50 ? -2 : 2
+    regimeTxt := regime == -2 ? "CHOP" : "RANGE"
+
+bool regimeVetoLong  = in_regimeGate and regime == -1
+bool regimeVetoShort = in_regimeGate and regime == 1
+float regimeMult = 1.0   // direction-aware multiplier applied in Station 3 (after the confluence score exists)
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SECTION 5 · E02/E05/E06/E07/E08 LIQUIDITY · FVG · ORDER BLOCK · RTM · WYCKOFF
+// ═════════════════════════════════════════════════════════════════════════════
+// ── sweeps & equal levels ──
+float liqHigh = ta.highest(high[1], in_liqLB)
+float liqLow  = ta.lowest(low[1], in_liqLB)
+bool  sweepHigh = high > liqHigh and close < liqHigh
+bool  sweepLow  = low < liqLow and close > liqLow
+bool  eqHighs = array.size(shHist) >= 2 and math.abs(array.get(shHist, array.size(shHist) - 1) - array.get(shHist, array.size(shHist) - 2)) < in_eqTol * atrSafe
+bool  eqLows  = array.size(slHist) >= 2 and math.abs(array.get(slHist, array.size(slHist) - 1) - array.get(slHist, array.size(slHist) - 2)) < in_eqTol * atrSafe
+// ── E08 Wyckoff: sweep + reclaim + volume = spring / upthrust ──
+bool  spring   = sweepLow and volRatio > in_springV
+bool  upthrust = sweepHigh and volRatio > in_springV
+
+// ── E05 FVG tracking ──
+type Fvg
+    float top
+    float bottom
+    int   birth
+    bool  filled
+bool fvgBullRaw = low > high[2] and (low - high[2]) >= in_fvgMin * atrSafe
+bool fvgBearRaw = high < low[2] and (low[2] - high) >= in_fvgMin * atrSafe
+
+var array<Fvg> fvgB = array.new<Fvg>()
+var array<Fvg> fvgR = array.new<Fvg>()
+var array<box> fvgBoxes = array.new<box>()
+
+if fvgBullRaw
+    array.push(fvgB, Fvg.new(low, high[2], bar_index, false))
+    if array.size(fvgB) > 10
+        array.shift(fvgB)
+    if in_showFVG
+        array.push(fvgBoxes, box.new(bar_index, low, bar_index + 15, high[2], bgcolor = color.new(color.green, 86), border_color = color.new(color.green, 55), border_width = 1))
+        if array.size(fvgBoxes) > 12
+            box.delete(array.shift(fvgBoxes))
+if fvgBearRaw
+    array.push(fvgR, Fvg.new(low[2], high, bar_index, false))
+    if array.size(fvgR) > 10
+        array.shift(fvgR)
+    if in_showFVG
+        array.push(fvgBoxes, box.new(bar_index, low[2], bar_index + 15, high, bgcolor = color.new(color.red, 86), border_color = color.new(color.red, 55), border_width = 1))
+        if array.size(fvgBoxes) > 12
+            box.delete(array.shift(fvgBoxes))
+
+// mark filled + find nearest unfilled gap below/above price (re-selected every bar)
+var float nearFvgBTop = na
+var float nearFvgBBot = na
+var float nearFvgRTop = na
+var float nearFvgRBot = na
+nearFvgBTop := na
+nearFvgBBot := na
+nearFvgRTop := na
+nearFvgRBot := na
+if array.size(fvgB) > 0
+    for i = array.size(fvgB) - 1 to 0
+        Fvg zB = array.get(fvgB, i)
+        if not zB.filled and zB.top < close and bar_index - zB.birth <= in_obAge
+            if low <= zB.top
+                zB.filled := low <= zB.bottom
+                array.set(fvgB, i, zB)
+                if zB.filled
+                    continue
+            if na(nearFvgBTop)
+                nearFvgBTop := zB.top
+                nearFvgBBot := zB.bottom
+                break
+if array.size(fvgR) > 0
+    for i = array.size(fvgR) - 1 to 0
+        Fvg zR = array.get(fvgR, i)
+        if not zR.filled and zR.bottom > close and bar_index - zR.birth <= in_obAge
+            if high >= zR.bottom
+                zR.filled := high >= zR.top
+                array.set(fvgR, i, zR)
+                if zR.filled
+                    continue
+            if na(nearFvgRTop)
+                nearFvgRTop := zR.top
+                nearFvgRBot := zR.bottom
+                break
+
+bool fvgBullTap = not na(nearFvgBTop) and low <= nearFvgBTop and low > nearFvgBBot and close > nearFvgBBot
+bool fvgBearTap = not na(nearFvgRBot) and high >= nearFvgRBot and high < nearFvgRTop and close < nearFvgRTop
+
+// ── E06 Order Block tracking (origin candle body before displacement) ──
+bool dispBullCndl = body_ >= in_cndlDisp * atrSafe and close > open
+bool dispBearCndl = body_ >= in_cndlDisp * atrSafe and close < open
+type Ob
+    float top
+    float bottom
+    int   birth
+var array<Ob> obB = array.new<Ob>()
+var array<Ob> obR = array.new<Ob>()
+var array<box> obBoxes = array.new<box>()
+
+if dispBullCndl and close[1] < open[1]
+    array.push(obB, Ob.new(open[1], close[1], bar_index - 1))
+    if array.size(obB) > 6
+        array.shift(obB)
+    if in_showOB
+        array.push(obBoxes, box.new(bar_index - 1, open[1], bar_index + 20, close[1], bgcolor = color.new(color.green, 90), border_color = color.new(color.green, 65), border_width = 1))
+        if array.size(obBoxes) > 12
+            box.delete(array.shift(obBoxes))
+if dispBearCndl and close[1] > open[1]
+    array.push(obR, Ob.new(open[1], close[1], bar_index - 1))
+    if array.size(obR) > 6
+        array.shift(obR)
+    if in_showOB
+        array.push(obBoxes, box.new(bar_index - 1, open[1], bar_index + 20, close[1], bgcolor = color.new(color.red, 90), border_color = color.new(color.red, 65), border_width = 1))
+        if array.size(obBoxes) > 12
+            box.delete(array.shift(obBoxes))
+
+var float nearObBTop = na
+var float nearObBBot = na
+var float nearObRTop = na
+var float nearObRBot = na
+nearObBTop := na
+nearObBBot := na
+nearObRTop := na
+nearObRBot := na
+if array.size(obB) > 0
+    for i = array.size(obB) - 1 to 0
+        Ob oB = array.get(obB, i)
+        if oB.bottom < close and bar_index - oB.birth <= in_obAge
+            if na(nearObBTop)
+                nearObBTop := oB.top
+                nearObBBot := oB.bottom
+                break
+if array.size(obR) > 0
+    for i = array.size(obR) - 1 to 0
+        Ob oR = array.get(obR, i)
+        if oR.top > close and bar_index - oR.birth <= in_obAge
+            if na(nearObRTop)
+                nearObRTop := oR.top
+                nearObRBot := oR.bottom
+                break
+
+bool obBullTap = not na(nearObBTop) and low <= nearObBTop and low >= nearObBBot - 0.2 * atrSafe and close > nearObBTop
+bool obBearTap = not na(nearObRTop) and high >= nearObRTop and high <= nearObRBot + 0.2 * atrSafe and close < nearObRTop
+
+// ── E07 RTM: premium/discount + OTE ──
+float rngHigh = ta.highest(high, in_premLB)
+float rngLow  = ta.lowest(low, in_premLB)
+float rngSpan = math.max(rngHigh - rngLow, eps)
+float eq      = (rngHigh + rngLow) / 2.0
+bool  discount = close < eq
+bool  premium  = close > eq
+bool  inOteL   = close >= eq - 0.792 * rngSpan and close <= eq - 0.618 * rngSpan  // long OTE (lower part)
+bool  inOteS   = close >= eq + 0.618 * rngSpan and close <= eq + 0.792 * rngSpan  // short OTE (upper part)
+
+// ── Liquidity score ──
+float liqScore = 0.0
+liqScore += sweepLow ? (discount ? 20.0 : 12.0) : 0.0
+liqScore -= sweepHigh ? (premium ? 20.0 : 12.0) : 0.0
+if sweepLow and eqLows
+    liqScore += 5.0
+if sweepHigh and eqHighs
+    liqScore -= 5.0
+if spring
+    liqScore += 5.0
+if upthrust
+    liqScore -= 5.0
+liqScore += fvgBullTap ? 12.0 : 0.0
+liqScore -= fvgBearTap ? 12.0 : 0.0
+liqScore += obBullTap ? 10.0 : 0.0
+liqScore -= obBearTap ? 10.0 : 0.0
+liqScore += inOteL and zlsmaUp ? 5.0 : 0.0
+liqScore -= inOteS and not zlsmaUp ? 5.0 : 0.0
+liqScore := math.max(-60.0, math.min(60.0, liqScore))
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SECTION 6 · E03 VOLUME — VWAP · OBV · VFI · CMF · SPIKE · POC
+// ═════════════════════════════════════════════════════════════════════════════
+float vwap = ta.vwap(hlc3)
+float obv  = ta.cum(math.sign(ta.change(close)) * volume)
+float obvEma = ta.ema(obv, 14)
+bool  obvBull = obv > obvEma
+bool  obvBear = obv < obvEma
+
+float vfiInter = math.log(hlc3) - math.log(hlc3[1])
+float vfiVint  = ta.stdev(vfiInter, 30)
+float vfiCut   = in_vfiCoef * vfiVint * close
+float vfiVave  = nz(ta.sma(volume, in_vfiLen)[1], 0.0)
+float vfiVmax  = vfiVave * in_vfiV
+float vfiVc    = volume < vfiVmax ? volume : vfiVmax
+float vfiMf    = hlc3 - hlc3[1]
+float vfiVcp   = vfiMf > vfiCut ? vfiVc : vfiMf < -vfiCut ? -vfiVc : 0.0
+float vfiRaw   = math.sum(vfiVcp, in_vfiLen) / math.max(vfiVave, eps)
+float vfi      = ta.ema(vfiRaw, 3)
+float vfiMa    = ta.ema(vfi, 7)
+bool  vfiBull  = vfi > vfiMa
+
+float mfMult = high != low ? ((close - low) - (high - close)) / (high - low) : 0.0
+float cmf    = ta.sum(mfMult * volume, in_cmfLen) / math.max(ta.sum(volume, in_cmfLen), eps)
+
+// volume-profile POC (O(bars) per bar, bounded)
+float pocHi    = ta.highest(high, in_pocBars)
+float pocLo    = ta.lowest(low, in_pocBars)
+float pocRange = math.max(pocHi - pocLo, eps)
+float rowSz    = pocRange / in_pocBins
+var float[] vBins = array.new_float(0)
+if array.size(vBins) != in_pocBins
+    array.resize(vBins, in_pocBins, 0.0)
+for i = 0 to in_pocBars - 1
+    float px_ = close[i]
+    float vv_ = nz(volume[i])
+    if px_ >= pocLo and px_ < pocHi
+        int ri = math.min(in_pocBins - 1, int(math.floor((px_ - pocLo) / rowSz)))
+        array.set(vBins, ri, array.get(vBins, ri) + vv_)
+int pocIdx = 0
+for i = 1 to in_pocBins - 1
+    if array.get(vBins, i) > array.get(vBins, pocIdx)
+        pocIdx := i
+float poc = pocLo + (pocIdx + 0.5) * rowSz
+
+float voluScore = 0.0
+voluScore += in_useVwap and timeframe.isintraday ? (close > vwap ? 8.0 : -8.0) : 0.0
+voluScore += obvBull ? 8.0 : obvBear ? -8.0 : 0.0
+voluScore += vfiBull ? 8.0 : vfi < vfiMa ? -8.0 : 0.0
+voluScore += cmf > in_cmfLvl ? 8.0 : cmf < -in_cmfLvl ? -8.0 : 0.0
+voluScore += volRatio > in_spikeM ? (close > open ? 5.0 : -5.0) : 0.0
+voluScore += close > poc and zlsmaUp ? 5.0 : close < poc and not zlsmaUp ? -5.0 : 0.0
+voluScore := math.max(-42.0, math.min(42.0, voluScore))
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SECTION 7 · E04 VOLATILITY — SQUEEZE + ATR-RATIO HEALTH
+// ═════════════════════════════════════════════════════════════════════════════
+float kcBasis  = ta.sma(close, in_kcLen)
+float kcRange  = ta.sma(ta.tr, in_kcLen)
+float kcUpper  = kcBasis + in_kcMult * kcRange
+float kcLower  = kcBasis - in_kcMult * kcRange
+bool  squeezeOn  = bbLower > kcLower and bbUpper < kcUpper
+bool  squeezeOff = squeezeOn[1] and not squeezeOn
+
+float volatScore = 0.0
+volatScore += squeezeOff and close > bbUpper ? 15.0 : squeezeOff and close < bbLower ? -15.0 : 0.0
+volatScore += atrRatio >= in_atrMinR and atrRatio <= in_atrMaxR ? 10.0 : 0.0
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SECTION 8 · E10 MOMENTUM — RSI/DIV · MACD · WAVE TREND · MFI · STOCH · CCI
+// ═════════════════════════════════════════════════════════════════════════════
+float rsi = ta.rsi(close, in_rsiLen)
+float rsiPh = ta.pivothigh(rsi, in_rsiPLen, in_rsiPLen)
+float rsiPl = ta.pivotlow(rsi, in_rsiPLen, in_rsiPLen)
+float pricePh = ta.pivothigh(high, in_rsiPLen, in_rsiPLen)
+float pricePl = ta.pivotlow(low, in_rsiPLen, in_rsiPLen)
+bool bullDiv = in_rsiDiv and not na(rsiPl) and rsiPl > nz(rsiPl[10]) and pricePl < nz(pricePl[10])
+bool bearDiv = in_rsiDiv and not na(rsiPh) and rsiPh < nz(rsiPh[10]) and pricePh > nz(pricePh[10])
+
+[mLine, mSig, mHist] = ta.macd(close, in_macdF, in_macdS, in_macdSig)
+
+float wtEsa = ta.ema(hlc3, in_wtN1)
+float wtDev = ta.ema(math.abs(hlc3 - wtEsa), in_wtN1)
+float wtCi  = (hlc3 - wtEsa) / (0.015 * math.max(wtDev, eps))
+float wt1   = ta.ema(wtCi, in_wtN2)
+float wt2   = ta.sma(wt1, 4)
+
+float mfi = ta.mfi(hlc3, in_mfiLen)
+float stochK = ta.stoch(close, high, low, in_stochK)
+float stochD = ta.sma(stochK, in_stochD)
+float cci = ta.cci(hlc3, in_cciLen)
+
+float momScore = 0.0
+momScore += rsi > in_rsiL and rsi > rsi[1] ? 10.0 : rsi < in_rsiS and rsi < rsi[1] ? -10.0 : 0.0
+momScore += bullDiv ? 15.0 : bearDiv ? -15.0 : 0.0
+momScore += mHist > 0 ? 6.0 : mHist < 0 ? -6.0 : 0.0
+momScore += ta.crossover(mLine, mSig) ? 6.0 : ta.crossunder(mLine, mSig) ? -6.0 : 0.0
+momScore += wt1 > wt2 and wt1 > wt1[1] ? 8.0 : wt1 < wt2 and wt1 < wt1[1] ? -8.0 : 0.0
+momScore += mfi > 50 ? 6.0 : mfi < 50 ? -6.0 : 0.0
+momScore += stochK > stochD and stochK > stochK[1] ? 5.0 : stochK < stochD and stochK < stochK[1] ? -5.0 : 0.0
+momScore += cci > 100 and cci > cci[1] ? 4.0 : cci < -100 and cci < cci[1] ? -4.0 : 0.0
+momScore := math.max(-60.0, math.min(60.0, momScore))
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SECTION 9 · E09 TREND SCORE + CANDLE INTELLIGENCE
+// ═════════════════════════════════════════════════════════════════════════════
+float trendScore = 0.0
+trendScore += stDir == -1 ? 15.0 : stDir == 1 ? -15.0 : 0.0
+trendScore += close > zlsma and zlsmaUp ? 10.0 : close < zlsma and not zlsmaUp ? -10.0 : 0.0
+trendScore += emaF > emaM and emaM > emaS ? 10.0 : emaF < emaM and emaM < emaS ? -10.0 : 0.0
+trendScore += nz(adx) > in_adxMin and adx > nz(adx[1]) ? 5.0 : nz(adx) > in_adxMin and adx < nz(adx[1]) ? -5.0 : 0.0
+trendScore += htfBias * 20.0
+
+var float ibHi = na
+var float ibLo = na
+if high <= high[1] and low >= low[1]
+    ibHi := high[1]
+    ibLo := low[1]
+bool ibBreakUp = not na(ibHi) and close > ibHi
+bool ibBreakDn = not na(ibHi) and close < ibLo
+if ibBreakUp or ibBreakDn
+    ibHi := na
+    ibLo := na
+
+bool bullReject = lWick >= in_wickRatio * math.max(body_, eps) and closePos > 0.6 and close > open
+bool bearReject = uWick >= in_wickRatio * math.max(body_, eps) and closePos < 0.4 and close < open
+
+float cndlScore = 0.0
+cndlScore += body_ >= in_cndlDisp * atrSafe and close > open ? 10.0 : body_ >= in_cndlDisp * atrSafe and close < open ? -10.0 : 0.0
+cndlScore += bullReject ? 8.0 : bearReject ? -8.0 : 0.0
+cndlScore += ibBreakUp ? 7.0 : ibBreakDn ? -7.0 : 0.0
+cndlScore := math.max(-25.0, math.min(25.0, cndlScore))
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SECTION 10 · STATION 3 — CONFLUENCE AGGREGATION (APEX SL-2 penalties)
+// ═════════════════════════════════════════════════════════════════════════════
+float sStruct = structScore / 35.0
+float sLiq    = liqScore    / 60.0
+float sVolu   = voluScore   / 42.0
+float sVolat  = volatScore  / 25.0
+float sMom    = momScore    / 60.0
+float sTrend  = trendScore  / 60.0
+float sCndl   = cndlScore   / 25.0
+
+float wSum = w_struct + w_liq + w_volu + w_volat + w_mom + w_trend + w_cndl
+wSum := wSum <= 0 ? 1.0 : wSum
+float confScore = (sStruct * w_struct + sLiq * w_liq + sVolu * w_volu + sVolat * w_volat + sMom * w_mom + sTrend * w_trend + sCndl * w_cndl) / wSum * 100.0
+
+// family activity & agreement (|score| ≥ 20% of family max = active)
+int posFam = 0
+int negFam = 0
+if sStruct >= 0.20
+    posFam += 1
+else if sStruct <= -0.20
+    negFam += 1
+if sLiq >= 0.20
+    posFam += 1
+else if sLiq <= -0.20
+    negFam += 1
+if sVolu >= 0.20
+    posFam += 1
+else if sVolu <= -0.20
+    negFam += 1
+if sVolat >= 0.20
+    posFam += 1
+else if sVolat <= -0.20
+    negFam += 1
+if sMom >= 0.20
+    posFam += 1
+else if sMom <= -0.20
+    negFam += 1
+if sTrend >= 0.20
+    posFam += 1
+else if sTrend <= -0.20
+    negFam += 1
+if sCndl >= 0.20
+    posFam += 1
+else if sCndl <= -0.20
+    negFam += 1
+int actFam    = posFam + negFam
+int agreeFam  = confScore >= 0 ? posFam : negFam
+float conflictRatio = actFam > 0 ? (actFam - agreeFam) / actFam : 0.0
+float thinRatio     = actFam >= 3 ? 0.0 : (3 - actFam) / 3.0
+float gateFactor    = (1.0 - in_conflictPen * conflictRatio) * (1.0 - in_redundPen * thinRatio)
+
+// regime multiplier (direction-aware)
+if confScore > 0 and regime == 1
+    regimeMult := 1.08
+else if confScore < 0 and regime == -1
+    regimeMult := 1.08
+else if regime == -2
+    regimeMult := 0.85
+
+float finalScore = confScore * gateFactor * regimeMult
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SECTION 11 · STATION 4 — SETUP GATES + RISK-KERNEL VETOS
+// ═════════════════════════════════════════════════════════════════════════════
+bool warmedUp = bar_index >= math.max(300, in_pocBars + 100) and not na(adx)
+bool volOk    = atrRatio >= in_atrMinR and atrRatio <= in_atrMaxR
+
+// daily-loss circuit breaker (SL-5 veto 10)
+int dayStamp = monthofyear(time) * 100 + dayofmonth(time)
+var int   lastDayStamp = na
+var float dayStartEq   = na
+if na(lastDayStamp) or dayStamp != lastDayStamp
+    lastDayStamp := dayStamp
+    dayStartEq   := strategy.equity
+bool dayLossOk = in_maxDailyLoss <= 0 or strategy.equity >= dayStartEq * (1.0 - in_maxDailyLoss / 100.0)
+
+// loss-streak cooldown (SL-5 veto 12) — most recent trade P/L from the delta of the cumulative total
+var int   lastClosed  = 0
+var int   lossStreak  = 0
+var int   lastLossBar = na
+var float lastTotalNet = na
+if strategy.closedtrades > lastClosed
+    lastClosed := strategy.closedtrades
+    float curNet = strategy.netprofit()
+    float tradePnL = na(lastTotalNet) ? 0.0 : curNet - lastTotalNet
+    lastTotalNet := curNet
+    if tradePnL < 0
+        lossStreak += 1
+        lastLossBar := bar_index
+    else
+        lossStreak := 0
+bool streakOk = in_streakLosses <= 0 or lossStreak < in_streakLosses or (not na(lastLossBar) and bar_index - lastLossBar >= in_streakCooldown)
+
+// signal cooldown
+var int lastSigBar = na
+bool cooldownOk = na(lastSigBar) or bar_index - lastSigBar >= in_cooldown
+
+// E12 session gate
+bool sessOk = true
+if in_sessGate and timeframe.isintraday
+    float hm = hour(time, "UTC") + minute(time, "UTC") / 60.0
+    bool inAsia_    = in_useAsia and hm >= 0.0 and hm < 3.0
+    bool inLondon_  = in_useLondon and hm >= 7.0 and hm < 10.0
+    bool inNewYork_ = in_useNewyork and hm >= 12.5 and hm < 15.5
+    sessOk := inAsia_ or inLondon_ or inNewYork_
+
+int posNow = strategy.position_size > 0 ? 1 : strategy.position_size < 0 ? -1 : 0
+bool canLong  = strategy.position_size <= 0 or (in_allowFlip and strategy.position_size < 0)
+bool canShort = strategy.position_size >= 0 or (in_allowFlip and strategy.position_size > 0)
+
+bool vetoesLong  = regimeVetoLong or not volOk or not dayLossOk or not streakOk or not sessOk or not cooldownOk or not warmedUp
+bool vetoesShort = regimeVetoShort or not volOk or not dayLossOk or not streakOk or not sessOk or not cooldownOk or not warmedUp
+
+bool longSignal  = not vetoesLong and canLong and agreeFam >= in_minFamilies and finalScore >= in_minScore
+bool shortSignal = not vetoesShort and canShort and agreeFam >= in_minFamilies and finalScore <= -in_minScore
+
+string vetoTxt = "NONE"
+if not warmedUp
+    vetoTxt := "WARMUP"
+else if not volOk
+    vetoTxt := "VOL-EXTREME"
+else if not dayLossOk
+    vetoTxt := "DAY-LOSS"
+else if not streakOk
+    vetoTxt := "STREAK"
+else if not sessOk
+    vetoTxt := "SESSION"
+else if not cooldownOk
+    vetoTxt := "COOLDOWN"
+else if regime == -1 and confScore > 0
+    vetoTxt := "REGIME (no long)"
+else if regime == 1 and confScore < 0
+    vetoTxt := "REGIME (no short)"
+
+if longSignal or shortSignal
+    lastSigBar := bar_index
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SECTION 12 · STATION 5 — RISK KERNEL & EXECUTION
+// ═════════════════════════════════════════════════════════════════════════════
+var int   inPos     = 0
+var float entryPx   = na
+var float stopDist0 = na
+var float posStop   = na
+var float hhSince   = na
+var float llSince   = na
+var bool  beDone    = false
+var bool  tp1Done   = false
+
+if longSignal
+    float e = close
+    float structStopL = not na(lastSL) and lastSL < e ? lastSL : e - in_slAtr * atrSafe
+    float d = e - structStopL
+    d := math.max(in_slAtr * atrSafe, math.min(in_slCapAtr * atrSafe, d))
+    float qty = strategy.equity * in_riskPct / 100.0 / d
+    entryPx   := e
+    stopDist0 := d
+    posStop   := e - d
+    beDone    := false
+    tp1Done   := false
+    if qty > 0
+        strategy.entry("APEX_L", strategy.long, qty = qty, comment = "APEX L " + str.tostring(finalScore, "#.0"))
+        strategy.exit("M_L", from_entry = "APEX_L", stop = posStop, limit = e + in_tp2R * d, comment_loss = "APEX SL", comment_profit = "APEX TP2")
+    alert("APEX ULTRA: LONG setup — score " + str.tostring(finalScore, "#.0") + " · " + str.tostring(agreeFam) + " families · " + regimeTxt, alert.freq_once_per_bar_close)
+
+if shortSignal
+    float e = close
+    float structStopS = not na(lastSH) and lastSH > e ? lastSH : e + in_slAtr * atrSafe
+    float d = structStopS - e
+    d := math.max(in_slAtr * atrSafe, math.min(in_slCapAtr * atrSafe, d))
+    float qty = strategy.equity * in_riskPct / 100.0 / d
+    entryPx   := e
+    stopDist0 := d
+    posStop   := e + d
+    beDone    := false
+    tp1Done   := false
+    if qty > 0
+        strategy.entry("APEX_S", strategy.short, qty = qty, comment = "APEX S " + str.tostring(finalScore, "#.0"))
+        strategy.exit("M_S", from_entry = "APEX_S", stop = posStop, limit = e - in_tp2R * d, comment_loss = "APEX SL", comment_profit = "APEX TP2")
+    alert("APEX ULTRA: SHORT setup — score " + str.tostring(finalScore, "#.0") + " · " + str.tostring(agreeFam) + " families · " + regimeTxt, alert.freq_once_per_bar_close)
+
+// ── position management (runs from the bar after entry) ──
+if posNow != inPos
+    if posNow == 0
+        inPos := 0
+        beDone := false
+        tp1Done := false
+    else
+        inPos := posNow
+        hhSince := high[1]
+        llSince := low[1]
+
+if inPos == 1
+    hhSince := math.max(hhSince, high[1])
+    float stopL = posStop
+    if not beDone and high[1] >= entryPx + in_beR * stopDist0
+        beDone := true
+    if beDone
+        stopL := math.max(stopL, entryPx + 0.1 * stopDist0)
+    if tp1Done
+        stopL := math.max(stopL, hhSince - in_trailAtr * atrSafe)
+    posStop := stopL
+    if not tp1Done and high[1] >= entryPx + in_tp1R * stopDist0
+        strategy.close("APEX_L", qty_percent = in_tp1Pct, comment = "TP1")
+        tp1Done := true
+    if not tp1Done
+        strategy.exit("M_L", from_entry = "APEX_L", stop = posStop, limit = entryPx + in_tp2R * stopDist0, comment_loss = "APEX SL", comment_profit = "APEX TP2")
+    else
+        strategy.exit("M_L", from_entry = "APEX_L", stop = posStop, comment_loss = "APEX TRAIL")
+
+if inPos == -1
+    llSince := math.min(llSince, low[1])
+    float stopS = posStop
+    if not beDone and low[1] <= entryPx - in_beR * stopDist0
+        beDone := true
+    if beDone
+        stopS := math.min(stopS, entryPx - 0.1 * stopDist0)
+    if tp1Done
+        stopS := math.min(stopS, llSince + in_trailAtr * atrSafe)
+    posStop := stopS
+    if not tp1Done and low[1] <= entryPx - in_tp1R * stopDist0
+        strategy.close("APEX_S", qty_percent = in_tp1Pct, comment = "TP1")
+        tp1Done := true
+    if not tp1Done
+        strategy.exit("M_S", from_entry = "APEX_S", stop = posStop, limit = entryPx - in_tp2R * stopDist0, comment_loss = "APEX SL", comment_profit = "APEX TP2")
+    else
+        strategy.exit("M_S", from_entry = "APEX_S", stop = posStop, comment_loss = "APEX TRAIL")
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SECTION 13 · VISUALIZATION
+// ═════════════════════════════════════════════════════════════════════════════
+// ── trend lines ──
+plot(in_showLines ? zlsma : na, "ZLSMA", color = color.new(color.orange, 25), linewidth = 2)
+plot(in_showLines ? stLine : na, "SuperTrend", color = stDir == -1 ? color.new(color.green, 45) : color.new(color.red, 45), style = plot.style_stepline, linewidth = 1)
+plot(in_showLines and in_useVwap and timeframe.isintraday ? vwap : na, "VWAP", color = color.new(color.aqua, 40), linewidth = 1)
+plot(in_showLines ? poc : na, "Volume POC", color = color.new(color.purple, 45), style = plot.style_linebr, linewidth = 1)
+
+// ── swings ─
+plotshape(in_showSwings and not na(ph), "Swing High", shape.triangleDown, location.abovebar, color = color.new(color.orange, 40), size = size.tiny, offset = -in_swingLen)
+plotshape(in_showSwings and not na(pl), "Swing Low", shape.triangleUp, location.belowbar, color = color.new(color.aqua, 40), size = size.tiny, offset = -in_swingLen)
+
+// ── live stop line ──
+var line stopLn = na
+if inPos != 0 and in_showLines
+    if na(stopLn)
+        stopLn := line.new(bar_index, posStop, bar_index + 2, posStop, color = inPos == 1 ? color.new(color.red, 15) : color.new(color.lime, 15), style = line.style_dashed, width = 2)
+    else
+        line.set_xy1(stopLn, bar_index, posStop)
+        line.set_xy2(stopLn, bar_index + 2, posStop)
+        line.set_color(stopLn, inPos == 1 ? color.new(color.red, 15) : color.new(color.lime, 15))
+if inPos == 0 and not na(stopLn)
+    line.delete(stopLn)
+    stopLn := na
+
+// ── signal labels (ring buffer ≤ 350) ──
+var label[] lblArr = array.new<label>()
+f_pushLbl(label l) =>
+    array.push(lblArr, l)
+    if array.size(lblArr) > 350
+        label.delete(array.shift(lblArr))
+if in_showLabels and longSignal
+    f_pushLbl(label.new(bar_index, low, "APEX LONG\n" + str.tostring(finalScore, "#.#") + " · " + str.tostring(agreeFam) + "/7 fam · " + regimeTxt, style = label.style_label_up, color = color.new(color.green, 0), textcolor = color.white, size = size.small))
+if in_showLabels and shortSignal
+    f_pushLbl(label.new(bar_index, high, "APEX SHORT\n" + str.tostring(finalScore, "#.#") + " · " + str.tostring(agreeFam) + "/7 fam · " + regimeTxt, style = label.style_label_down, color = color.new(color.red, 0), textcolor = color.white, size = size.small))
+
+// ── dashboard ─
+var table dash = na
+if in_showDash and barstate.islast
+    if na(dash)
+        dash := table.new(position.top_right, 2, 14, bgcolor = color.new(color.black, 80), border_size = size.small, border_color = color.new(color.gray, 80))
+    table.clear(dash, 0, 0, 2, 14)
+    float rNow = inPos != 0 ? (inPos == 1 ? (close - entryPx) : (entryPx - close)) / math.max(stopDist0, eps) : 0.0
+    string posTxt = inPos == 1 ? "LONG · " + str.tostring(rNow, "+#.##R") : inPos == -1 ? "SHORT · " + str.tostring(rNow, "+#.##R") : "FLAT"
+    table.cell(dash, 0, 0, "APEX ULTRA v1 (sina)", text_color = color.white, text_size = size.small)
+    table.cell(dash, 1, 0, syminfo.ticker + " " + timeframe.period, text_color = color.silver, text_size = size.small)
+    table.cell(dash, 0, 1, "Regime", text_color = color.silver, text_size = size.small)
+    table.cell(dash, 1, 1, regimeTxt + (volRank > 0.70 ? " · EXPANSION" : ""), text_color = regime == 1 ? color.lime : regime == -1 ? color.red : color.yellow, text_size = size.small)
+    table.cell(dash, 0, 2, "HTF " + in_htf1 + "/" + in_htf2, text_color = color.silver, text_size = size.small)
+    table.cell(dash, 1, 2, str.tostring(htfBias1, "+#;-#") + " / " + str.tostring(htfBias2, "+#;-#"), text_color = htfBias > 0 ? color.lime : htfBias < 0 ? color.red : color.gray, text_size = size.small)
+    table.cell(dash, 0, 3, "Confluence", text_color = color.silver, text_size = size.small)
+    table.cell(dash, 1, 3, str.tostring(finalScore, "+#.0;-#.0;0.0") + " (min ±" + str.tostring(in_minScore) + ")", text_color = finalScore >= in_minScore ? color.lime : finalScore <= -in_minScore ? color.red : color.white, text_size = size.small)
+    table.cell(dash, 0, 4, "Families", text_color = color.silver, text_size = size.small)
+    table.cell(dash, 1, 4, str.tostring(agreeFam) + "/" + str.tostring(actFam) + " agree · need " + str.tostring(in_minFamilies), text_color = agreeFam >= in_minFamilies ? color.lime : color.orange, text_size = size.small)
+    table.cell(dash, 0, 5, "E01 Structure", text_color = color.silver, text_size = size.small)
+    table.cell(dash, 1, 5, str.tostring(sStruct * 100, "+#.0;-#.0;0.0"), text_color = sStruct >= 0.2 ? color.lime : sStruct <= -0.2 ? color.red : color.gray, text_size = size.small)
+    table.cell(dash, 0, 6, "E02 Liquidity", text_color = color.silver, text_size = size.small)
+    table.cell(dash, 1, 6, str.tostring(sLiq * 100, "+#.0;-#.0;0.0"), text_color = sLiq >= 0.2 ? color.lime : sLiq <= -0.2 ? color.red : color.gray, text_size = size.small)
+    table.cell(dash, 0, 7, "E03 Volume", text_color = color.silver, text_size = size.small)
+    table.cell(dash, 1, 7, str.tostring(sVolu * 100, "+#.0;-#.0;0.0"), text_color = sVolu >= 0.2 ? color.lime : sVolu <= -0.2 ? color.red : color.gray, text_size = size.small)
+    table.cell(dash, 0, 8, "E04 Volatility", text_color = color.silver, text_size = size.small)
+    table.cell(dash, 1, 8, str.tostring(sVolat * 100, "+#.0;-#.0;0.0"), text_color = sVolat >= 0.2 ? color.lime : sVolat <= -0.2 ? color.red : color.gray, text_size = size.small)
+    table.cell(dash, 0, 9, "E10 Momentum", text_color = color.silver, text_size = size.small)
+    table.cell(dash, 1, 9, str.tostring(sMom * 100, "+#.0;-#.0;0.0"), text_color = sMom >= 0.2 ? color.lime : sMom <= -0.2 ? color.red : color.gray, text_size = size.small)
+    table.cell(dash, 0, 10, "E09 Trend", text_color = color.silver, text_size = size.small)
+    table.cell(dash, 1, 10, str.tostring(sTrend * 100, "+#.0;-#.0;0.0"), text_color = sTrend >= 0.2 ? color.lime : sTrend <= -0.2 ? color.red : color.gray, text_size = size.small)
+    table.cell(dash, 0, 11, "Candle Intel", text_color = color.silver, text_size = size.small)
+    table.cell(dash, 1, 11, str.tostring(sCndl * 100, "+#.0;-#.0;0.0"), text_color = sCndl >= 0.2 ? color.lime : sCndl <= -0.2 ? color.red : color.gray, text_size = size.small)
+    table.cell(dash, 0, 12, "Veto", text_color = color.silver, text_size = size.small)
+    table.cell(dash, 1, 12, vetoTxt, text_color = vetoTxt == "NONE" ? color.lime : color.red, text_size = size.small)
+    table.cell(dash, 0, 13, "Position / Equity", text_color = color.silver, text_size = size.small)
+    table.cell(dash, 1, 13, posTxt + " · " + str.tostring(strategy.equity, "#,##0"), text_color = inPos == 1 ? color.lime : inPos == -1 ? color.red : color.white, text_size = size.small)
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SECTION 14 · ALERTS
+// ═════════════════════════════════════════════════════════════════════════════
+alertcondition(longSignal, "APEX ULTRA — Long Setup", "APEX ULTRA long confluence setup (score ≥ threshold, all vetoes clear)")
+alertcondition(shortSignal, "APEX ULTRA — Short Setup", "APEX ULTRA short confluence setup (score ≤ -threshold, all vetoes clear)")
+alertcondition(longSignal or shortSignal, "APEX ULTRA — Any Setup", "APEX ULTRA confluence setup (long or short)")
+alertcondition(bosUp or bosDn, "APEX ULTRA — BOS", "Market structure break (BOS) detected")
+alertcondition(chochUp or chochDn, "APEX ULTRA — CHoCH", "Change of character (CHoCH) detected")
