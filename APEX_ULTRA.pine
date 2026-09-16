@@ -760,21 +760,25 @@ var float hhSince   = na
 var float llSince   = na
 var bool  beDone    = false
 var bool  tp1Done   = false
+var int   entryBar  = na
+// pending entry data — applied only when the position becomes visible (next bar),
+// so a flip bar never mixes the new stop into the old position's management
+var float pendEntry = na
+var float pendDist  = na
+var float pendStop  = na
 
 if longSignal
     float e = close
     float structStopL = not na(lastSL) and lastSL < e ? lastSL : e - in_slAtr * atrSafe
     float d = e - structStopL
     d := math.max(in_slAtr * atrSafe, math.min(in_slCapAtr * atrSafe, d))
+    pendEntry := e
+    pendDist  := d
+    pendStop  := e - d
     float qty = strategy.equity * in_riskPct / 100.0 / d
-    entryPx   := e
-    stopDist0 := d
-    posStop   := e - d
-    beDone    := false
-    tp1Done   := false
     if qty > 0
         strategy.entry("APEX_L", strategy.long, qty = qty, comment = "APEX L " + str.tostring(finalScore, "#.0"))
-        strategy.exit("M_L", from_entry = "APEX_L", stop = posStop, limit = e + in_tp2R * d, comment_loss = "APEX SL", comment_profit = "APEX TP2")
+        strategy.exit("M_L", from_entry = "APEX_L", stop = e - d, limit = e + in_tp2R * d, comment_loss = "APEX SL", comment_profit = "APEX TP2")
     alert("APEX ULTRA: LONG setup — score " + str.tostring(finalScore, "#.0") + " · " + str.tostring(agreeFam) + " families · " + regimeTxt, alert.freq_once_per_bar_close)
 
 if shortSignal
@@ -782,18 +786,18 @@ if shortSignal
     float structStopS = not na(lastSH) and lastSH > e ? lastSH : e + in_slAtr * atrSafe
     float d = structStopS - e
     d := math.max(in_slAtr * atrSafe, math.min(in_slCapAtr * atrSafe, d))
+    pendEntry := e
+    pendDist  := d
+    pendStop  := e + d
     float qty = strategy.equity * in_riskPct / 100.0 / d
-    entryPx   := e
-    stopDist0 := d
-    posStop   := e + d
-    beDone    := false
-    tp1Done   := false
     if qty > 0
         strategy.entry("APEX_S", strategy.short, qty = qty, comment = "APEX S " + str.tostring(finalScore, "#.0"))
-        strategy.exit("M_S", from_entry = "APEX_S", stop = posStop, limit = e - in_tp2R * d, comment_loss = "APEX SL", comment_profit = "APEX TP2")
+        strategy.exit("M_S", from_entry = "APEX_S", stop = e + d, limit = e - in_tp2R * d, comment_loss = "APEX SL", comment_profit = "APEX TP2")
     alert("APEX ULTRA: SHORT setup — score " + str.tostring(finalScore, "#.0") + " · " + str.tostring(agreeFam) + " families · " + regimeTxt, alert.freq_once_per_bar_close)
 
-// ── position management (runs from the bar after entry) ──
+// ── position management ──
+// state applies only when the position is actually visible (next bar); trigger
+// checks start one bar later, so the entry bar's pre-fill price action can't fire them
 if posNow != inPos
     if posNow == 0
         inPos := 0
@@ -801,10 +805,18 @@ if posNow != inPos
         tp1Done := false
     else
         inPos := posNow
+        entryBar := bar_index
+        entryPx := not na(pendEntry) ? pendEntry : close[1]
+        stopDist0 := not na(pendDist) ? pendDist : atrSafe
+        posStop := not na(pendStop) ? pendStop : close[1] - inPos * stopDist0
+        beDone := false
+        tp1Done := false
         hhSince := high[1]
         llSince := low[1]
 
-if inPos == 1
+bool managing = inPos != 0 and not na(entryBar) and bar_index - entryBar >= 1
+
+if managing and inPos == 1
     hhSince := math.max(hhSince, high[1])
     float stopL = posStop
     if not beDone and high[1] >= entryPx + in_beR * stopDist0
@@ -814,15 +826,16 @@ if inPos == 1
     if tp1Done
         stopL := math.max(stopL, hhSince - in_trailAtr * atrSafe)
     posStop := stopL
-    if not tp1Done and high[1] >= entryPx + in_tp1R * stopDist0
-        strategy.close("APEX_L", qty_percent = in_tp1Pct, comment = "TP1")
-        tp1Done := true
     if not tp1Done
+        strategy.exit("TP1_L", from_entry = "APEX_L", qty_percent = in_tp1Pct, limit = entryPx + in_tp1R * stopDist0, comment_profit = "TP1")
         strategy.exit("M_L", from_entry = "APEX_L", stop = posStop, limit = entryPx + in_tp2R * stopDist0, comment_loss = "APEX SL", comment_profit = "APEX TP2")
+        // TP1_L is only in effect from the first managed bar, so its trigger is read one bar later
+        if high[1] >= entryPx + in_tp1R * stopDist0 and bar_index - entryBar >= 2
+            tp1Done := true
     else
         strategy.exit("M_L", from_entry = "APEX_L", stop = posStop, comment_loss = "APEX TRAIL")
 
-if inPos == -1
+if managing and inPos == -1
     llSince := math.min(llSince, low[1])
     float stopS = posStop
     if not beDone and low[1] <= entryPx - in_beR * stopDist0
@@ -832,11 +845,11 @@ if inPos == -1
     if tp1Done
         stopS := math.min(stopS, llSince + in_trailAtr * atrSafe)
     posStop := stopS
-    if not tp1Done and low[1] <= entryPx - in_tp1R * stopDist0
-        strategy.close("APEX_S", qty_percent = in_tp1Pct, comment = "TP1")
-        tp1Done := true
     if not tp1Done
+        strategy.exit("TP1_S", from_entry = "APEX_S", qty_percent = in_tp1Pct, limit = entryPx - in_tp1R * stopDist0, comment_profit = "TP1")
         strategy.exit("M_S", from_entry = "APEX_S", stop = posStop, limit = entryPx - in_tp2R * stopDist0, comment_loss = "APEX SL", comment_profit = "APEX TP2")
+        if low[1] <= entryPx - in_tp1R * stopDist0 and bar_index - entryBar >= 2
+            tp1Done := true
     else
         strategy.exit("M_S", from_entry = "APEX_S", stop = posStop, comment_loss = "APEX TRAIL")
 
